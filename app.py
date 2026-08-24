@@ -40,6 +40,8 @@ if uploaded_file:
             columns=['Tsh', 'Area', 'Name 1'], 
             values='Quantity', 
             aggfunc='sum'
+            margins=True,                     # <--- INI TAMBAHANNYA
+            margins_name='Total Keseluruhan'  # <--- INI TAMBAHANNYA
         )
         
         st.success(f"Berhasil! Data siap diunduh.")
@@ -58,3 +60,4 @@ if uploaded_file:
         )
     else:
         st.warning("Data kosong setelah difilter. Periksa kembali keyword atau isi file Anda.")
+        
