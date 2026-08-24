@@ -39,7 +39,7 @@ if uploaded_file:
             index='Article Description', 
             columns=['Tsh', 'Area', 'Name 1'], 
             values='Quantity', 
-            aggfunc='sum'
+            aggfunc='sum',
             margins=True,                     # <--- INI TAMBAHANNYA
             margins_name='Total Keseluruhan'  # <--- INI TAMBAHANNYA
         )
