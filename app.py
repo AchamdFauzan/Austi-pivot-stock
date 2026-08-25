@@ -66,7 +66,28 @@ if uploaded_file:
         pivot_df = pd.concat([pivot_df, pd.DataFrame(total_row).T])
         
         st.success("✅ Berhasil diproses!")
-        st.dataframe(pivot_df.head(15))
+        
+        # ---------------- TAMBAHAN: MEWARNAI HEADER TABEL ----------------
+        # Mengatur gaya CSS untuk tag <th> (Table Header)
+        styles = [
+            {
+                'selector': 'th',
+                'props': [
+                    ('background-color', '#4CAF50'), # Warna background (Hijau)
+                    ('color', 'white'),              # Warna teks (Putih)
+                    ('font-weight', 'bold'),         # Teks tebal
+                    ('text-align', 'center'),        # Posisi teks di tengah
+                    ('border', '1px solid white')    # Garis pembatas agar rapi
+                ]
+            }
+        ]
+        
+        # Aplikasikan style ke head(15)
+        styled_pivot = pivot_df.head(15).style.set_table_styles(styles)
+        
+        # Tampilkan tabel yang sudah diberi style
+        st.dataframe(styled_pivot, use_container_width=True)
+        # -----------------------------------------------------------------
         
         # Export ke Excel
         buffer = io.BytesIO()
