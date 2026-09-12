@@ -64,7 +64,7 @@ if uploaded_file:
                 if a not in area_order:
                     area_order.append(a)
             
-            # Sort dataframe menggunakan Categorical yang sudah diupdate
+            # Sort dataframe menggunakan Categorical
             df['Tsh'] = pd.Categorical(df['Tsh'], categories=tsh_order, ordered=True)
             df['Area'] = pd.Categorical(df['Area'], categories=area_order, ordered=True)
             df = df.sort_values(['Tsh', 'Area', 'Name 1', 'Article Description'])
@@ -83,11 +83,12 @@ if uploaded_file:
             if pivot_df.empty or len(pivot_df.columns) == 0:
                 st.warning("⚠️ Pivot berhasil dibuat tapi isinya kosong. Pastikan nilai 'Quantity' pada mentahan Anda tidak 0 semua.")
             else:
-                # Tambahkan Total
-                pivot_df['Total Keseluruhan'] = pivot_df.sum(axis=1)
-                total_row = pivot_df.sum(axis=0)
-                total_row.name = 'Total Keseluruhan'
-                pivot_df = pd.concat([pivot_df, pd.DataFrame(total_row).T])
+                # PERBAIKAN: Penambahan Kolom Total menggunakan format tuple 3 tingkat
+                # Agar susunan Header 'Tsh', 'Area', 'Name 1' tidak rusak
+                pivot_df[('Total Keseluruhan', '', '')] = pivot_df.sum(axis=1)
+                
+                # Penambahan Baris Total paling bawah
+                pivot_df.loc['Total Keseluruhan'] = pivot_df.sum(axis=0)
                 
                 st.success("✅ Berhasil diproses!")
                 
