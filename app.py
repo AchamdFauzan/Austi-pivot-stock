@@ -3,34 +3,26 @@ import pandas as pd
 import io
 
 st.set_page_config(page_title="Auto Pivot Stock SPR JABO", layout="wide")
-
 st.title("📦 Aplikasi Auto-Pivot Stock (Format SPR JABO)")
-st.write("Sistem ini menyusun file mentahan menjadi format Pivot Excel yang siap diunduh dengan struktur kolom bertingkat (MultiIndex).")
 
-# 1. Fitur Upload
 uploaded_file = st.file_uploader("Upload File Mentahan (.xlsx)", type=["xlsx"])
 
 if uploaded_file:
     df = pd.read_excel(uploaded_file, sheet_name=0)
-    
-    # Cleansing awal: Hapus spasi tidak kasat mata di judul kolom
     df.columns = df.columns.str.strip()
     
-    # Validasi keberadaan kolom wajib
     required_cols = ['Tsh', 'Area', 'Name 1', 'Article Description', 'Quantity']
     missing_cols = [col for col in required_cols if col not in df.columns]
     
     if missing_cols:
-        st.error(f"❌ Gagal memproses! Kolom berikut tidak ditemukan di Excel mentahan Anda: {', '.join(missing_cols)}")
-        st.info("💡 Pastikan file mentahan Anda sudah memiliki kolom 'Tsh' dan 'Area'. (Lakukan VLOOKUP terlebih dahulu jika diperlukan).")
+        st.error(f"❌ Gagal memproses! Kolom berikut tidak ditemukan: {', '.join(missing_cols)}")
     else:
-        # Cleansing Isi Data: Menyeragamkan teks dan menghapus spasi
+        # Cleansing Data
         for col in ['Tsh', 'Area', 'Name 1', 'Article Description']:
             df[col] = df[col].fillna('(kosong)').astype(str).str.strip()
-            
         df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce').fillna(0)
         
-        # 2. Filter Kategori
+        # Filter Kategori
         st.subheader("Filter Kategori Barang")
         kategori = st.radio("Pilih kategori:", ["Semua Data", "Hanya Device", "Hanya Accessories"], horizontal=True)
         
@@ -42,12 +34,11 @@ if uploaded_file:
         elif kategori == "Hanya Accessories":
             df = df[df['Article Description'].str.contains('|'.join(acc_kw), case=False, na=False)]
             
-        if df.empty:
-            st.warning("⚠️ Data kosong setelah difilter kategori.")
-        else:
-            st.success("⏳ Memproses Pivot Data...")
+        if not df.empty:
+            st.success("⏳ Memproses Pivot Data dengan urutan Tsh > Area > Name 1...")
             
-            # 3. Proses Pembuatan Pivot Table (Format MultiIndex)
+            # --- PEMBUATAN PIVOT ---
+            # Urutan di dalam kurung siku ini yang menentukan TSH di awal, lalu Area
             pivot_df = pd.pivot_table(
                 df, 
                 index='Article Description', 
@@ -57,28 +48,23 @@ if uploaded_file:
                 fill_value=0
             )
             
-            # --- SOLUSI UTAMA KOLOM HILANG ---
-            # Kita WAJIB menggunakan struktur tuple 3 tingkat ('Nama Kolom', '', '')
-            # Hal ini agar Pandas tidak merusak susunan header 'Tsh' dan 'Area' di sebelahnya.
+            # Memasukkan Kolom Total tanpa merusak susunan tingkat Tsh & Area
             pivot_df[('Total Keseluruhan', '', '')] = pivot_df.sum(axis=1)
-            
-            # Tambahkan baris total di paling bawah
             pivot_df.loc['Total Keseluruhan'] = pivot_df.sum(axis=0)
             
-            # Tampilkan sekilas di Web
             st.dataframe(pivot_df, use_container_width=True)
             
-            # 4. Export ke File Excel (.xlsx) dengan Aman
+            # --- EXPORT KE EXCEL ---
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                # Simpan tanpa kode styling warna (karena sering crash dengan header bertingkat)
                 pivot_df.to_excel(writer, sheet_name='Stock_SPR_JABO')
                 
             buffer.seek(0)
-            
             st.download_button(
-                label="⬇️ Unduh Hasil Pivot SPR JABO (.xlsx)",
+                label="⬇️ Unduh Hasil Pivot (.xlsx)",
                 data=buffer.getvalue(),
                 file_name=f"SPR_JABO_{kategori.replace(' ', '_')}.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             )
+        else:
+            st.warning("⚠️ Data kosong setelah difilter kategori.")
