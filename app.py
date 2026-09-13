@@ -59,15 +59,32 @@ if uploaded_file:
                 fill_value=0
             )
             
-            # Tambahkan kolom Total Keseluruhan (Struktur 3 Tingkat)
+           # Tambahkan kolom Total Keseluruhan (Struktur 3 Tingkat)
             pivot_df[('Total Keseluruhan', '', '')] = pivot_df.sum(axis=1)
             
             # Tambahkan baris Total Keseluruhan paling bawah
             pivot_df.loc['Total Keseluruhan'] = pivot_df.sum(axis=0)
             
-            # Tampilkan sekilas di Web Streamlit
-            st.dataframe(pivot_df, use_container_width=True)
+            # --- TRIK UNTUK TAMPILAN WEB STREAMLIT AGAR RAPI ---
+            # Kita buat salinan khusus untuk ditampilkan di layar saja
+            preview_df = pivot_df.copy()
             
+            # Ubah nama kolom yang tadinya bertingkat menjadi satu baris teks yang panjang dan jelas
+            new_columns = []
+            for col in preview_df.columns:
+                if col[0] == 'Total Keseluruhan':
+                    new_columns.append('Total Keseluruhan')
+                else:
+                    # Menampilkan urutan: Tsh -> Area -> Nama Toko
+                    new_columns.append(f"Tsh: {col[0]} | Area: {col[1]} | Toko: {col[2]}")
+            
+            preview_df.columns = new_columns
+            
+            # Ubah nama index agar sesuai dengan permintaan Anda
+            preview_df.index.name = "Label Baris"
+            
+            # Tampilkan data pratinjau di Streamlit (tampilan akan menjadi lebih panjang ke samping)
+            st.dataframe(preview_df, use_container_width=True) 
             # 4. Export ke File Excel (.xlsx) dengan Format Custom (Persis Gambar)
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
