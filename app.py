@@ -63,12 +63,19 @@ if uploaded_raw:
                     index='Article Description', 
                     columns=['Tsh', 'Area', 'Name 1'], 
                     values='Quantity', 
-                    aggfunc='sum',
-                    fill_value=0
+                    aggfunc='sum'
+                    # Perubahan: fill_value=0 dihapus agar sel yang kosong dibiarkan NaN (kosong) sementara
                 )
                 
-                pivot_df[('Total Keseluruhan', '', '')] = pivot_df.sum(axis=1)
-                pivot_df.loc['Total Keseluruhan'] = pivot_df.sum(axis=0)
+                # Tambahkan Total Keseluruhan, hiraukan nilai kosong saat menjumlahkan
+                pivot_df[('Total Keseluruhan', '', '')] = pivot_df.sum(axis=1, skipna=True)
+                pivot_df.loc['Total Keseluruhan'] = pivot_df.sum(axis=0, skipna=True)
+                
+                # --- PERUBAHAN UTAMA: Ubah NaN/0 menjadi string kosong (blank cell) di Excel ---
+                # Menggunakan trik fillna("") setelah semua penjumlahan selesai
+                pivot_df = pivot_df.fillna("") 
+                # Khusus untuk sel yang benar-benar bernilai angka 0 (jika ada dari mentahan), ubah juga ke kosong
+                pivot_df = pivot_df.replace(0, "")
                 
                 pivot_df.to_excel(excel_writer, sheet_name=sheet_name)
                 
