@@ -6,52 +6,66 @@ from openpyxl.utils import get_column_letter
 
 st.set_page_config(page_title="Auto Pivot Stock SPR JABO", layout="wide")
 
-st.title("📦 Aplikasi Auto-Pivot Stock (Format SPR JABO)")
-st.write("Sistem ini menyusun file mentahan menjadi Pivot Stock dengan format kolom bertingkat (Tsh, Area, Toko) persis SPR JABO.")
+st.title("📦 Aplikasi Auto-Pivot Stock (2 Sheet: Device & Acc)")
+st.write("Sistem otomatis membagi data menjadi Sheet Device & Accessories berdasarkan file Master Kategori dengan format presisi SPR JABO.")
 
-# 1. Fitur Upload File Mentahan
-uploaded_file = st.file_uploader("Upload File Mentahan (.xlsx)", type=["xlsx"])
+# 1. Fitur Upload 2 File (Mentahan & Master)
+col1, col2 = st.columns(2)
+with col1:
+    uploaded_raw = st.file_uploader("1️⃣ Upload File MENTAHAN (.xlsx)", type=["xlsx"])
+with col2:
+    uploaded_master = st.file_uploader("2️⃣ Upload File MASTER KATEGORI (.xlsx)", type=["xlsx"])
 
-if uploaded_file:
-    df = pd.read_excel(uploaded_file, sheet_name=0)
+if uploaded_raw and uploaded_master:
+    # Membaca kedua file
+    df_raw = pd.read_excel(uploaded_raw, sheet_name=0)
+    df_master = pd.read_excel(uploaded_master, sheet_name=0)
     
     # Cleansing awal: Hapus spasi tersembunyi di judul kolom
-    df.columns = df.columns.str.strip()
+    df_raw.columns = df_raw.columns.str.strip()
+    df_master.columns = df_master.columns.str.strip()
     
-    # Validasi keberadaan kolom wajib
-    required_cols = ['Tsh', 'Area', 'Name 1', 'Article Description', 'Quantity']
-    missing_cols = [col for col in required_cols if col not in df.columns]
+    # Validasi kolom wajib file mentahan
+    required_raw = ['Tsh', 'Area', 'Name 1', 'Article Description', 'Quantity', 'Material Grp Desc. 2']
+    missing_raw = [col for col in required_raw if col not in df_raw.columns]
     
-    if missing_cols:
-        st.error(f"❌ Gagal memproses! Kolom berikut tidak ditemukan di Excel mentahan Anda: {', '.join(missing_cols)}")
-        st.info("💡 Pastikan file mentahan Anda sudah memiliki kolom 'Tsh' dan 'Area'.")
+    # Validasi kolom wajib file master
+    required_master = ['Material', 'Category']
+    missing_master = [col for col in required_master if col not in df_master.columns]
+    
+    if missing_raw:
+        st.error(f"❌ File Mentahan kurang kolom: {', '.join(missing_raw)}. Pastikan kolom 'Tsh', 'Area', dan 'Material Grp Desc. 2' ada.")
+    elif missing_master:
+        st.error(f"❌ File Master kurang kolom: {', '.join(missing_master)}")
     else:
-        # Cleansing Isi Data
-        for col in ['Tsh', 'Area', 'Name 1', 'Article Description']:
-            df[col] = df[col].fillna('(kosong)').astype(str).str.strip()
-            
-        df['Quantity'] = pd.to_numeric(df['Quantity'], errors='coerce').fillna(0)
+        st.success("✅ File berhasil dibaca. Sedang memproses penggabungan dan pembuatan Pivot...")
         
-        # 2. Filter Kategori Barang
-        st.subheader("Filter Kategori Barang")
-        kategori = st.radio("Pilih kategori:", ["Semua Data", "Hanya Device", "Hanya Accessories"], horizontal=True)
-        
-        device_kw = ['oppo', 'samsung', 'vivo', 'iphone', 'macbook', 'acer', 'asus', 'lenovo', 'zyrex', 'infinix', 'realme', 'xiaomi', 'poco', 'ipad', 'tv', 'tablet', 'tab']
-        acc_kw = ['watch', 'buds', 'enco', 'fan', 'case', 'charger', 'cable', 'strap', 'tws', 'adapter', 'powerbank', 'screen', 'tempered']
-        
-        if kategori == "Hanya Device":
-            df = df[df['Article Description'].str.contains('|'.join(device_kw), case=False, na=False)]
-        elif kategori == "Hanya Accessories":
-            df = df[df['Article Description'].str.contains('|'.join(acc_kw), case=False, na=False)]
+        # Cleansing Isi Data Raw
+        for col in ['Tsh', 'Area', 'Name 1', 'Article Description', 'Material Grp Desc. 2']:
+            df_raw[col] = df_raw[col].fillna('(kosong)').astype(str).str.strip()
             
-        if df.empty:
-            st.warning("⚠️ Data kosong setelah difilter kategori.")
-        else:
-            st.success("⏳ Memproses Pivot Data...")
-            
-            # 3. Proses Pembuatan Pivot Table MultiIndex (Tsh, Area, Name 1)
+        df_raw['Quantity'] = pd.to_numeric(df_raw['Quantity'], errors='coerce').fillna(0)
+        
+        # Cleansing Isi Data Master
+        df_master['Material'] = df_master['Material'].astype(str).str.strip()
+        df_master['Category'] = df_master['Category'].astype(str).str.strip()
+        
+        # 2. Proses VLOOKUP (Merge) berdasarkan Material
+        df_merged = pd.merge(df_raw, df_master, left_on='Material Grp Desc. 2', right_on='Material', how='left')
+        
+        # Pisahkan menjadi 2 DataFrame (Device & Accessories)
+        # Device = Kategori yang mengandung kata 'Device' atau 'Tablet'
+        # Acc = Kategori yang mengandung kata 'Acc'
+        df_device = df_merged[df_merged['Category'].str.contains('Device|Tablet', case=False, na=False)]
+        df_acc = df_merged[df_merged['Category'].str.contains('Acc', case=False, na=False)]
+        
+        # 3. Fungsi Pembuat Pivot & Perapi Format Excel
+        def generate_pivot_sheet(df_subset, sheet_name, excel_writer):
+            if df_subset.empty:
+                return # Lewati jika tidak ada datanya
+                
             pivot_df = pd.pivot_table(
-                df, 
+                df_subset, 
                 index='Article Description', 
                 columns=['Tsh', 'Area', 'Name 1'], 
                 values='Quantity', 
@@ -61,45 +75,49 @@ if uploaded_file:
             
             # Tambahkan kolom Total Keseluruhan
             pivot_df[('Total Keseluruhan', '', '')] = pivot_df.sum(axis=1)
-            
-            # Tambahkan baris Total Keseluruhan paling bawah
+            # Tambahkan baris Total Keseluruhan
             pivot_df.loc['Total Keseluruhan'] = pivot_df.sum(axis=0)
             
-            st.info("💡 Pratinjau di web diringkas oleh sistem. Silakan klik tombol unduh untuk melihat struktur 3 tingkat (Tsh & Area) di Excel.")
-            st.dataframe(pivot_df, use_container_width=True)
+            # Simpan ke Sheet Excel
+            pivot_df.to_excel(excel_writer, sheet_name=sheet_name)
             
-            # 4. Export ke File Excel (.xlsx) dengan Format Presisi SPR JABO
-            buffer = io.BytesIO()
-            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                pivot_df.to_excel(writer, sheet_name='Stock_SPR_JABO')
-                
-            buffer.seek(0)
+            # Akses library openpyxl untuk merapikan format kolom bertingkat
+            ws = excel_writer.sheets[sheet_name]
             
-            # --- PROSES MERAPIKAN FORMAT EXCEL DENGAN OPENPYXL ---
-            wb = openpyxl.load_workbook(buffer)
-            ws = wb['Stock_SPR_JABO']
-            
-            # Memastikan sel A1, A2, dan A3 terisi persis seperti format SPR JABO asli
+            # Penamaan sel pojok persis seperti SPR JABO
             ws['A1'] = 'Tsh'
             ws['A2'] = 'Area'
             ws['A3'] = 'Label Baris'
             
-            # Hapus baris ke-4 (baris jeda 'Article Description' bawaan Pandas)
+            # Hapus baris kosong ke-4
             ws.delete_rows(4)
             
-            # Tambahkan tombol Filter (Dropdown) di baris ke-3
+            # Tambahkan Filter Dropdown di baris ke-3
             max_col = get_column_letter(ws.max_column)
             max_row = ws.max_row
             ws.auto_filter.ref = f"A3:{max_col}{max_row}"
             
-            final_buffer = io.BytesIO()
-            wb.save(final_buffer)
-            final_buffer.seek(0)
+            return pivot_df # Kembalikan dataframe untuk pratinjau web
+
+        # 4. Tulis ke dalam File Excel (Memory Buffer)
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+            pivot_dev = generate_pivot_sheet(df_device, 'Stock_Device', writer)
+            pivot_acc = generate_pivot_sheet(df_acc, 'Stock_Accessories', writer)
             
-            # Tombol Download Excel
-            st.download_button(
-                label="⬇️ Unduh Hasil Pivot SPR JABO (.xlsx)",
-                data=final_buffer.getvalue(),
-                file_name=f"SPR_JABO_{kategori.replace(' ', '_')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+        buffer.seek(0)
+        
+        # Tampilan Sekilas di Web (Opsional)
+        st.info("💡 Pratinjau Data (Hanya menampilkan sebagian data Device. Silakan unduh untuk melihat format lengkap 2 Sheet).")
+        if pivot_dev is not None:
+            st.dataframe(pivot_dev.head(10), use_container_width=True)
+
+        # 5. Tombol Unduh
+        st.download_button(
+            label="⬇️ Unduh Hasil Pivot SPR JABO (2 Sheet).xlsx",
+            data=buffer.getvalue(),
+            file_name="SPR_JABO_Device_&_Acc.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+elif uploaded_raw or uploaded_master:
+    st.warning("⚠️ Mohon upload KEDUA file (Mentahan dan Master) untuk mulai memproses.")
